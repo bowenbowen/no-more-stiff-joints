@@ -1,6 +1,6 @@
 /***************************** HAVE DONE *****************************/
 // See how much the sensor is moving by comparing the current readings with the last sets
-// The larger a move, the larger the move values are; if still, the move values stay close to 0
+// The bigger a move, the larger the move values are; if still, the move values stay close to 0
 
 
 /***************************** TO DO *****************************/
