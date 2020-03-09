@@ -1,24 +1,29 @@
-// accelerometer parts
 #include <Wire.h>
-#include <SPI.h>
-#include <Adafruit_LIS3DH.h>
-#include <Adafruit_Sensor.h>
 
-// Used for software SPI
-#define LIS3DH_CLK 13
-#define LIS3DH_MISO 12
-#define LIS3DH_MOSI 11
-// Used for hardware & software SPI
-#define LIS3DH_CS 10
 
-// software SPI
-Adafruit_LIS3DH lis = Adafruit_LIS3DH(LIS3DH_CS, LIS3DH_MOSI, LIS3DH_MISO, LIS3DH_CLK);
-// end accelerometer 
-
-#define ledPin 5
+#define buzzerPin 5
+#define xPin A0
+#define yPin A3
+#define zPin A5
 
 String inString = "";
-int alertTime = -1;
+int countDown = -1;
+int alertTime = 10;   // how often you get a alert
+int ifActivated = false;      // whether the who system is activated 
+
+
+int valueX;
+int valueY;
+int valueZ;
+
+int lastValueX, lastValueY, lastValueZ;      // the last angle difference
+int moveX, moveY, moveZ, moveAverage;        // how much has changed since the last state
+
+const int sessionLength = 5;    // monitor how many values back to see if currently active
+int moveTolerance = 50;    // how much move is deemed active
+int lastMoveVals[sessionLength];
+int activeLimit = 2;     // out of [sessionLength] number of values, if over this value, it is currently active
+int isActive = false;      // whether active or not in the current session 
 
 
 
@@ -126,20 +131,8 @@ void setup(void)
 
   Serial.begin(115200);
 
-  pinMode(ledPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
 
-  // accelerometer parts
-  if (! lis.begin(0x18)) {   // change this to 0x19 for alternative i2c address
-    Serial.println("LISS3DH Couldnt start");
-    while (1) yield();
-  }
-  Serial.println("LIS3DH found!");
-  
-  lis.setRange(LIS3DH_RANGE_4_G);   // 2, 4, 8 or 16 G!
-  
-  Serial.print("Range = "); Serial.print(2 << lis.getRange());  
-  Serial.println("G");
-  // end accelerometer parts
   
   Serial.println(F("Adafruit Bluefruit Command <-> Data Mode Example"));
   Serial.println(F("------------------------------------------------"));
@@ -198,27 +191,76 @@ void setup(void)
 }
 
 
+
+
 void loop(void) {
   delay(1000);                  //wait 1 second
 
+  valueX = analogRead(xPin);
+  valueY = analogRead(yPin);
+  valueZ = analogRead(zPin);
 
-  lis.read();  // get X Y and Z data at once
-  
-  uint8_t val_x = map(lis.x, -8500, 8500, 0, 255);
-  uint8_t val_y = map(lis.y, -8500, 8500, 0, 255);
-  uint8_t val_z = map(lis.z, -8500, 8500, 0, 255);
-  
-//  Serial.print("X:  "); Serial.print(lis.x); Serial.print(","); Serial.print(val_x); 
-//  Serial.print("  \tY:  "); Serial.print(lis.y); Serial.print(","); Serial.print(val_y);
-//  Serial.print("  \tZ:  "); Serial.print(lis.z); Serial.print(","); Serial.print(val_z);
-//  Serial.println();
+  // how much has changed since the last state
+  moveX = valueX - lastValueX;
+  moveY = valueY - lastValueY;
+  moveZ = valueZ - lastValueZ;
+  moveAverage = (abs(moveX) + abs(moveY) + abs(moveZ)) / 3;
+
+
+  // update last values
+  for (byte i = sessionLength - 1; i > 0; i -= 1){ lastMoveVals[i] = lastMoveVals[i-1]; }
+  lastMoveVals[0] = moveAverage;
+
+
+  // check if the current session is active. 
+  // if more than [activeLimit] number of values are over [moveTolerance], it is active
+  int activeCount = 0;
+  for (byte i = 0; i < sessionLength -1; i += 1){
+    if (abs(lastMoveVals[i]) > moveTolerance){ activeCount += 1; }
+  }
+  if (activeCount >= activeLimit){
+    isActive = true;
+  } else {
+    isActive = false; 
+  }
+
+
+  // prepare to read the next state
+  lastValueX = valueX;
+  lastValueY = valueY;
+  lastValueZ = valueZ;
+
+//  uint8_t val_x = map(moveX, -150, 150, 0, 255);
+//  uint8_t val_y = map(moveY, -150, 150, 0, 255);
+//  uint8_t val_z = map(moveZ, -150, 150, 0, 255);
+  uint8_t val_ave = map(moveAverage, 0, 150, 0, 255);
 
   
-  ble.print(val_x);               //send value to bluefruit uart
-  ble.print(",");               //send value to bluefruit uart
-  ble.print(val_y);               //send value to bluefruit uart
-  ble.print(",");               //send value to bluefruit uart
-  ble.print(val_z);               //send value to bluefruit uart
+//  ble.print(val_x);               //send value to bluefruit uart
+//  ble.print(",");
+//  ble.print(val_y);
+//  ble.print(",");
+//  ble.print(val_z);
+
+//  ble.print(moveX);               //send value to bluefruit uart
+//  ble.print(",");
+//  ble.print(moveY);
+//  ble.print(",");
+//  ble.print(moveZ);
+//  ble.print(moveAverage);
+
+  ble.print(lastMoveVals[0]);
+  ble.print(",");
+  ble.print(lastMoveVals[1]);
+  ble.print(",");
+  ble.print(lastMoveVals[2]);
+  ble.print(",");
+  ble.print(lastMoveVals[3]);
+  ble.print(",");
+  ble.print(lastMoveVals[4]);
+  ble.print(", ifActive:");
+  ble.print(isActive);
+  
 
   if (SEND_SECOND_PLOT) {               //change SEND_SECOND_PLOT to 1 for add'l sine plot
     if (sineIndex > 255) sineIndex = 0; //stay within bounds of sine table
@@ -235,8 +277,11 @@ void loop(void) {
       inString += (char)inChar;
     }
     if(inChar == '\n'){
+      ifActivated = true;
+      
       Serial.print("Value: ");
       Serial.println(inString.toInt());
+      countDown = inString.toInt();
       alertTime = inString.toInt();
       Serial.print("String: ");
       Serial.println(inString);
@@ -246,26 +291,33 @@ void loop(void) {
   }
  
   
-  switch(alertTime){
-    case 0:
-      digitalWrite(ledPin, LOW);
-      break;
-    case 1:
-      digitalWrite(ledPin, HIGH);
-      break;
-    case 10:
-      digitalWrite(ledPin, HIGH);
-      break;
-  }
+//  switch(countDown){
+//    case 0:
+//      digitalWrite(buzzerPin, LOW);
+//      break;
+//    case 1:
+//      digitalWrite(buzzerPin, HIGH);
+//      break;
+//    case 10:
+//      digitalWrite(buzzerPin, HIGH);
+//      break;
+//  }
 
-  if(alertTime == 0){
+  // reset countdown if the current session is active. Otherwise, keep counting down
+  if (ifActivated == true && isActive == true){
+    countDown = alertTime;
+  }
+  
+  if(countDown == 0){
     Serial.print("Time's up! ");
-    Serial.println(alertTime);
-    alertTime = 0;
-  } else if (alertTime > 0){
-    alertTime = alertTime - 1;
+    Serial.println(countDown);
+    digitalWrite(buzzerPin, HIGH);
+    countDown = 0;
+  } else if (countDown > 0){
+    countDown = countDown - 1;
     Serial.print("Time left: ");
-    Serial.println(alertTime);
+    Serial.println(countDown);
+    digitalWrite(buzzerPin, LOW);
   }
 
 }
