@@ -8,7 +8,7 @@
 
 String inString = "";
 int countDown = -1;
-int alertTime = 10;   // how often you get a alert
+int alertTime = 10;           // how often you get an alert
 int ifActivated = false;      // whether the who system is activated 
 
 
@@ -19,11 +19,11 @@ int valueZ;
 int lastValueX, lastValueY, lastValueZ;      // the last angle difference
 int moveX, moveY, moveZ, moveAverage;        // how much has changed since the last state
 
-const int sessionLength = 5;    // monitor how many values back to see if currently active
-int moveTolerance = 50;    // how much move is deemed active
+const int sessionLength = 5;  // monitor how many values back to see if currently active
+int moveTolerance = 50;       // how much move is deemed active
 int lastMoveVals[sessionLength];
 int activeLimit = 2;     // out of [sessionLength] number of values, if over this value, it is currently active
-int isActive = false;      // whether active or not in the current session 
+int isActive = false;    // whether active or not in the current session 
 
 
 
@@ -126,7 +126,7 @@ void error(const __FlashStringHelper*err) {
 /**************************************************************************/
 void setup(void)
 {
-  //  while (!Serial);  // required for Flora & Micro
+  
   delay(500);
 
   Serial.begin(115200);
@@ -258,7 +258,7 @@ void loop(void) {
   ble.print(lastMoveVals[3]);
   ble.print(",");
   ble.print(lastMoveVals[4]);
-  ble.print(", ifActive:");
+  ble.print(", isActive:");
   ble.print(isActive);
   
 
@@ -289,19 +289,6 @@ void loop(void) {
       inString = "";
     }
   }
- 
-  
-//  switch(countDown){
-//    case 0:
-//      digitalWrite(buzzerPin, LOW);
-//      break;
-//    case 1:
-//      digitalWrite(buzzerPin, HIGH);
-//      break;
-//    case 10:
-//      digitalWrite(buzzerPin, HIGH);
-//      break;
-//  }
 
   // reset countdown if the current session is active. Otherwise, keep counting down
   if (ifActivated == true && isActive == true){
